@@ -12,6 +12,10 @@ import org.scalacheck.Prop.forAll
 import shapeless._
 import shapeless.record.Record
 import shapeless.syntax.singleton._
+import cats.Functor
+import shapeless.ops.hlist.Align
+
+import scala.reflect.ClassTag
 
 class SequenceSuite extends KittensSuite {
 
@@ -113,47 +117,62 @@ class SequenceSuite extends KittensSuite {
 
   case class MyCase(a: Int, b: String, c: Float)
 
-  test("sequence gen for Option")(check {
+  test("sequence gen for Option"){
+    type L = Record.`'a -> Option[Int], 'b -> Option[String], 'c -> Option[Float]`.T
+    val fun = implicitly[Functor[Option]]
+    val rs = shapeless.the[RecordSequencer[L]]
+    val lg = LabelledGeneric[MyCase]
+//    val al = Align[Record.`'a -> Int, 'b -> String, 'c -> Float`.T, Int :: String :: Float :: HNil]
+//    val al = Align[Int :: String :: Float :: HNil, Int :: String :: Float :: HNil]
+//    val al = Align[lg.Repr, Int :: String :: Float :: HNil]
+//    def f[LOut](implicit ev1: LabelledGeneric.Aux[MyCase, LOut], ev2: Align[Int :: String :: Float :: HNil, LOut]) = ()
+//    f
+
+    println(rs(Record(a = Some[Int](1), b = Some[String]("a"), c = Some[Float](1.0.toFloat))))
+    println(lg.from(Record(a = 1, b = "a", c = 1.0.toFloat)))
+
+    check {
     forAll { (x: Option[Int], y: Option[String], z: Option[Float]) =>
       val myGen = sequenceGeneric[MyCase]
       val expected = (x, y, z) mapN MyCase.apply
       myGen(a = x, b = y, c = z) == expected
     }
-  })
-
-  test("sequence gen with different sort")(check {
-    forAll { (x: Option[Int], y: Option[String], z: Option[Float]) =>
-      val myGen = sequenceGeneric[MyCase]
-      val expected = (x, y, z) mapN MyCase.apply
-      myGen(b = y, a = x, c = z) == expected
-    }
-  })
-
-  test("sequence gen for Either")(check {
-    forAll { (x: Either[String, Int], y: Either[String, String], z: Either[String, Float]) =>
-      val myGen = sequenceGeneric[MyCase]
-      val expected = (x, y, z) mapN MyCase.apply
-      myGen(a = x, b = y, c = z) == expected
-    }
-  })
-
-  test("sequence gen for Functions") {
-    val f1 = (_: String).length
-    val f2 = (_: String).reverse
-    val f3 = (_: String).toFloat
-    val myGen = sequenceGeneric[MyCase]
-    val f = myGen(a = f1, b = f2, c = f3)
-    assert(f("42.0") == MyCase(4, "0.24", 42.0f))
   }
-
-  test("sequence gen for Klesili") {
-    val f1 = ((_: String).length) andThen Option.apply
-    val f2 = ((_: String).reverse) andThen Option.apply
-    val f3 = ((_: String).toFloat) andThen Option.apply
-    val myGen = sequenceGeneric[MyCase]
-    val f = myGen(a = Kleisli(f1), b = Kleisli(f2), c = Kleisli(f3))
-    assert(f.run("42.0") == Some(MyCase(4, "0.24", 42.0f)))
   }
+//
+//  test("sequence gen with different sort")(check {
+//    forAll { (x: Option[Int], y: Option[String], z: Option[Float]) =>
+//      val myGen = sequenceGeneric[MyCase]
+//      val expected = (x, y, z) mapN MyCase.apply
+//      myGen(b = y, a = x, c = z) == expected
+//    }
+//  })
+//
+//  test("sequence gen for Either")(check {
+//    forAll { (x: Either[String, Int], y: Either[String, String], z: Either[String, Float]) =>
+//      val myGen = sequenceGeneric[MyCase]
+//      val expected = (x, y, z) mapN MyCase.apply
+//      myGen(a = x, b = y, c = z) == expected
+//    }
+//  })
+//
+//  test("sequence gen for Functions") {
+//    val f1 = (_: String).length
+//    val f2 = (_: String).reverse
+//    val f3 = (_: String).toFloat
+//    val myGen = sequenceGeneric[MyCase]
+//    val f = myGen(a = f1, b = f2, c = f3)
+//    assert(f("42.0") == MyCase(4, "0.24", 42.0f))
+//  }
+//
+//  test("sequence gen for Klesili") {
+//    val f1 = ((_: String).length) andThen Option.apply
+//    val f2 = ((_: String).reverse) andThen Option.apply
+//    val f3 = ((_: String).toFloat) andThen Option.apply
+//    val myGen = sequenceGeneric[MyCase]
+//    val f = myGen(a = Kleisli(f1), b = Kleisli(f2), c = Kleisli(f3))
+//    assert(f.run("42.0") == Some(MyCase(4, "0.24", 42.0f)))
+//  }
 
   checkAll("RecordSequencer is Serializable", SerializableTests.serializable(SequenceSuite.recordSequencer))
 }

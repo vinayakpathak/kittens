@@ -28,7 +28,7 @@ private[sequence] abstract class MkHConsSequencer {
   }
 
   implicit def mkHConsSequencer[F0[_], H, FT <: HList, T <: HList](
-    implicit tailSequencer: Aux[FT, F0, T], F: InvariantSemigroupal[F0]
+    implicit tailSequencer: Aux[FT, F0, T], F: Apply[F0]
   ): Aux[F0[H] :: FT, F0, H :: T] = new Sequencer[F0[H] :: FT] {
     type F[X] = F0[X]
     type LOut = H :: T
@@ -47,7 +47,7 @@ object Sequencer extends MkHConsSequencer {
   }
 
   implicit def mkSingletonSequencer[F0[_], H](
-    implicit F: Invariant[F0]
+    implicit F: Functor[F0]
   ): Aux[F0[H] :: HNil, F0, H :: HNil] = new Sequencer[F0[H] :: HNil] {
     type F[X] = F0[X]
     type LOut = H :: HNil
@@ -67,12 +67,12 @@ object RecordSequencer {
   implicit def mkRecordSequencer[R <: HList, K <: HList, V <: HList, F[_], VOut <: HList, ZOut <: HList](
     implicit unzip: UnzipFields.Aux[R, K, V],
     valueSequencer: Sequencer.Aux[V, F, VOut],
-    F: Invariant[F],
+    F: Functor[F],
     zip: ZipWithKeys.Aux[K, VOut, ZOut],
     unzip2: UnzipFields.Aux[ZOut, K, VOut]
   ): RecordSequencer.Aux[R, F[zip.Out]] = new RecordSequencer[R] {
     type Out = F[zip.Out]
-    def apply(record: R) = F.imap(valueSequencer(unzip.values(record)))(zip(_))(unzip2.values(_))
+    def apply(record: R) = F.imap(valueSequencer(unzip.values(record)))(zip(_))(unzip2.values)
   }
 }
 
@@ -89,11 +89,12 @@ object GenericSequencer {
     eqv: FOut =:= F[SOut],
     F: Functor[F],
     gen: LabelledGeneric.Aux[T, LOut],
-    align: Align[SOut, LOut]//,
-//    align2: Align[LOut, SOut]
+    align: Align[SOut, LOut],
+    align2: Align[LOut, SOut]
   ): GenericSequencer.Aux[L, T, F[T]] = new GenericSequencer[L, T] {
     type Out = F[T]
-    def apply(hl: L) = F.map(recordSequencer(hl))(so => gen.from(so.align))//(x => gen.to(x).align)
+    def apply(hl: L) = F.imap(recordSequencer(hl))(so => gen.from(so.align))(x => gen.to(x).align)
+//    def apply(hl: L) = F.imap(recordSequencer(hl))(so => gen.from(eqv1(so)))(x => eqv1.flip(gen.to(x)))
   }
 }
 
